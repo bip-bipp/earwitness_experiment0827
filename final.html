@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>耳聞證人實驗</title>
+<style>
+  body { font-family: Arial; text-align: center; margin: 20px; }
+  .audio-btn { margin: 10px; padding: 10px 20px; font-size: 18px; }
+</style>
+</head>
+<body>
+
+<h1>耳聞證人聲音識別實驗</h1>
+<p>請先聽第一段聲音（只能播放一次），並記住它的特徵。</p>
+
+<!-- 第一步的記憶用音檔：只播放，不參與判分 -->
+<audio id="audioA" src="https://github.com/bip-bipp/earwitness-experiment/raw/8c2210356f18e99fe9e0630eb9c1b9d307986441/a.wav" style="display:none"></audio>
+<button id="playA" class="audio-btn">播放音檔 A</button>
+
+<div id="step2" style="display:none;">
+  <h2>請聽下面 6 段聲音（每段只能播放一次）</h2>
+  <div id="audioList"></div>
+</div>
+
+<div id="step3" style="display:none;">
+  <h2>哪一段聲音與第一階段相同？</h2>
+  <div id="choiceButtons"></div>
+</div>
+
+<script>
+// 第二步的 6 段候選音檔（其中 awb.wav 是正解）
+const audioFiles = [
+  "https://github.com/bip-bipp/earwitness-experiment/raw/8c2210356f18e99fe9e0630eb9c1b9d307986441/awb.wav", // ✅ 正解
+  "https://github.com/bip-bipp/earwitness-experiment/raw/8c2210356f18e99fe9e0630eb9c1b9d307986441/bdl.wav",
+  "https://github.com/bip-bipp/earwitness-experiment/raw/8c2210356f18e99fe9e0630eb9c1b9d307986441/clb%201.wav",
+  "https://github.com/bip-bipp/earwitness-experiment/raw/8c2210356f18e99fe9e0630eb9c1b9d307986441/jmk.wav",
+  "https://github.com/bip-bipp/earwitness-experiment/raw/8c2210356f18e99fe9e0630eb9c1b9d307986441/kps.wav",
+  "https://github.com/bip-bipp/earwitness-experiment/raw/refs/heads/main/rms.wav"
+];
+
+let shuffledOrder = [];
+let hasPlayedA = false;
+let playCount = {};
+
+document.getElementById("playA").addEventListener("click", function () {
+  if (!hasPlayedA) {
+    document.getElementById("audioA").play();
+    hasPlayedA = true;
+    this.disabled = true;
+    setTimeout(() => document.getElementById("step2").style.display = "block", 1000);
+  }
+});
+
+// 隨機排序第二步的 6 段
+shuffledOrder = audioFiles.slice().sort(() => Math.random() - 0.5);
+
+// 建立播放按鈕（每段只能播一次）
+const listDiv = document.getElementById("audioList");
+shuffledOrder.forEach((file, index) => {
+  const audio = document.createElement("audio");
+  audio.src = file;
+  const btn = document.createElement("button");
+  btn.innerText = `播放 ${index + 1}`;
+  btn.className = "audio-btn";
+  btn.addEventListener("click", function () {
+    if (!playCount[file]) {
+      audio.play();
+      playCount[file] = true;
+      btn.disabled = true;
+      if (Object.keys(playCount).length === 6) {
+        document.getElementById("step3").style.display = "block";
+      }
+    }
+  });
+  listDiv.appendChild(btn);
+});
+
+// 建立答題按鈕（1~6）
+const choiceDiv = document.getElementById("choiceButtons");
+for (let i = 1; i <= 6; i++) {
+  const btn = document.createElement("button");
+  btn.innerText = i;
+  btn.className = "audio-btn";
+  btn.addEventListener("click", function () {
+    const participantID = "P" + Date.now();
+
+    // ✅ 正解只認 awb.wav（第一步的 a.wav 只用來聽）
+    const targetFile = "https://github.com/bip-bipp/earwitness-experiment/raw/8c2210356f18e99fe9e0630eb9c1b9d307986441/awb.wav";
+    const correctIndex = shuffledOrder.indexOf(targetFile) + 1; // 1~6
+
+    const correctOrNot = (i === correctIndex) ? "Correct" : "Wrong";
+
+    // 送到 Apps Script（用 no-cors，避免前端誤判失敗）
+    fetch("https://script.google.com/macros/s/AKfycbzh3Cmju_EH9uEoRw-kzGlGcbWEH_jVxk-Ynxo2omb61DYFpGFo5V5qhfWHXIQfmCQ/exec", {
+      method: "POST",
+      mode: "no-cors",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: `ParticipantID=${participantID}&AudioOrder=${encodeURIComponent(shuffledOrder.join(","))}&Response=${i}&CorrectAnswer=${correctIndex}&CorrectOrNot=${correctOrNot}`
+    });
+
+    alert("感謝您的參與！資料已送出！");
+    // 稍等 150ms 再重整，確保請求已發出
+    setTimeout(() => location.reload(), 150);
+  });
+  choiceDiv.appendChild(btn);
+}
+</script>
+
+</body>
+</html>
+
